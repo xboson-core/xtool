@@ -3,3 +3,5 @@ xtool.exe
 xtool
 *.csv
 *.zip
+
+!test/exclude.txt

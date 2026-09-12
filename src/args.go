@@ -29,22 +29,23 @@ func (o *Options) MakeWrap(fp FileProcess) FileProcess {
 
 
 func ParseArgs() *Options {
+	f := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	opt := &Options{}
 	var pack, diff, sqld bool
 
-	flag.BoolVar(&pack, "pack", false, "build pack zip")
-	flag.BoolVar(&diff, "diff", false, "build diff zip")
-	flag.BoolVar(&sqld, "sqld", false, "build sql diff")
-	flag.StringVar(&opt.Input, "i", "", "input directory")
-	flag.StringVar(&opt.Output, "o", "", "output zip")
-	flag.StringVar(&opt.Base, "b", "", "base zip")
-	flag.StringVar(&opt.Meta, "meta", "", "meta csv")
-	flag.StringVar(&opt.ExcludeFrom, "exclude-from", "", "exclude file")
-	flag.StringVar(&opt.DeleteFile, "del", "", "save removed file")
-	flag.BoolVar(&opt.Verbose, "v", false, "show progress")
-	flag.BoolVar(&opt.Line, "l", false, "show progress in one line")
-	flag.Parse()
-
+	f.BoolVar(&pack, "pack", false, "build pack zip")
+	f.BoolVar(&diff, "diff", false, "build diff zip")
+	f.BoolVar(&sqld, "sqld", false, "build sql diff")
+	f.StringVar(&opt.Input, "i", "", "input directory / input sql file")
+	f.StringVar(&opt.Output, "o", "", "output zip or sql file")
+	f.StringVar(&opt.Base, "b", "", "base zip / base sql file")
+	f.StringVar(&opt.Meta, "meta", "", "meta csv")
+	f.StringVar(&opt.ExcludeFrom, "exclude-from", "", "exclude file")
+	f.StringVar(&opt.DeleteFile, "del", "", "save removed file")
+	f.BoolVar(&opt.Verbose, "v", false, "show progress")
+	f.BoolVar(&opt.Line, "l", false, "show progress in one line")
+	f.Parse(os.Args[1:])
+	
 	n := 0
 	if pack {
 		opt.Mode = "pack"
@@ -59,14 +60,16 @@ func ParseArgs() *Options {
 		n++
 	}
 	if n != 1 {
-		flag.Usage()
+		f.Usage()
 		os.Exit(2)
 	}
-	if opt.Mode == "pack" && opt.Input == "" {
+
+	if pack && opt.Input == "" {
 		fmt.Fprintln(os.Stderr, "-i is required in pack mode")
 		os.Exit(2)
 	}
-	if opt.Mode == "diff" {
+
+	if diff {
 		if opt.Input == "" {
 			fmt.Fprintln(os.Stderr, "-i is required in diff mode")
 			os.Exit(2)
@@ -75,6 +78,22 @@ func ParseArgs() *Options {
 			fmt.Fprintln(os.Stderr, "-b is required in diff mode")
 			os.Exit(2)
 		}
+	}
+
+	if sqld {
+		if opt.Input == "" {
+			fmt.Fprintln(os.Stderr, "-i is required in sqld mode")
+			os.Exit(2)
+		}
+		if opt.Base == "" {
+			fmt.Fprintln(os.Stderr, "-b is required in sqld mode")
+			os.Exit(2)
+		}
+	}
+
+	if opt.Output == "" {
+		fmt.Fprintln(os.Stderr, "-o is required")
+		os.Exit(2)
 	}
 	
 	if opt.Meta == "" {

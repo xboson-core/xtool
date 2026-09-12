@@ -19,3 +19,9 @@ test2: build
 		-del test/dellist.txt \
 		-o test/update.zip \
 		--exclude-from test/exclude.txt \
+
+test3: build
+	./xtool --sqld -b test/base.sql -i test/last.sql -o test/update.sql
+
+test4: build
+	./xtool --sqld -b test/a.sql -i test/b.sql -o test/c.sql

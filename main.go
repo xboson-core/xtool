@@ -27,7 +27,7 @@ func main() {
   case "diff":
     err = xtool.DiffMode(opt)
   case "sqld":
-    err = sql_diff(opt)
+    err = xtool.SqlDiff(opt)
   }
 
 	if err != nil {
