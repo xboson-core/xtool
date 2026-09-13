@@ -298,7 +298,7 @@ func makeWhereWithPK(t *Table, row []string) string {
 			where.WriteString(" AND ")
 		}
 		where.WriteString(t.SafeCol[i])
-		where.WriteString("=")
+		where.WriteString(" = ")
 		where.WriteString(row[i])
 		wi += 1
 	}
@@ -337,34 +337,37 @@ func (d *DiffDataBuilder) makeUpdate(t *Table, old, new []string) string {
 	if si == 0 {
 		return ""
 	}
-	return fmt.Sprintf("Update %s \n\tSet %s \n\tWhere %s", 
-		t.Name, set.String(), where)
+	return fmt.Sprintf(
+		"UPDATE %s \n\tSET %s \n\tWHERE %s", 
+		t.SafeName(), set.String(), where)
 }
 
 
 func (d *DiffDataBuilder) makeDelete(t *Table, row []string) string {
 	where := makeWhereWithPK(t, row)
-	return fmt.Sprintf("DELETE FROM %s where %s", t.Name, where)
+	return fmt.Sprintf("DELETE FROM %s where %s", t.SafeName(), where)
 }
 
 
 func (d *DiffDataBuilder) makeInsert(t *Table, row []string) string {
-	_cols := ""
-	_rows := ""
+	_cols := strings.Builder{}
+	_rows := strings.Builder{}
 	c := 0
 	for i, v := range row {
 		if v == "" {
 			continue
 		}
 		if c > 0 {
-			_rows += ", "
-			_cols += ", "
+			_rows.WriteString(", ")
+			_cols.WriteString(", ")
 		}
-		_rows += v
-		_cols += t.SafeCol[i]
+		_rows.WriteString(v)
+		_cols.WriteString(t.SafeCol[i])
 		c += 1
 	}
-	return fmt.Sprintf("INSERT INTO %s (%s) VALUES \n\t(%s)", t.Name, _cols, _rows)
+	return fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES \n\t(%s)", 
+		t.Name, _cols.String(), _rows.String())
 }
 
 
@@ -372,7 +375,8 @@ func (d *DiffDataBuilder) OnFinish() {
 	// 迭代 base中的表, 在d中找不到就输出 
 	for name := range d.base.tables {
     if _, ok := d.tables[name]; !ok {
-      d.putrs(fmt.Sprintf("DROP TABLE IF EXISTS %s;", name))
+			safename := d.base.tables[name].SafeName()
+      d.putrs(fmt.Sprintf("DROP TABLE IF EXISTS %s;", safename))
     }
   }
 }
