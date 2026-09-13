@@ -86,7 +86,7 @@ func (e *EachOption) ReadExclude(fname string) error {
 	for scanner.Scan() {
 		line := scanner.Text()
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "#") {
+		if line=="" || strings.HasPrefix(line, "#") {
 			continue
 		}
 		e.Root.Put(line)
