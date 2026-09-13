@@ -14,20 +14,29 @@ type Render func(io.Writer)(int, error)
 
 
 type Schema struct {
-	s string
+	schema string
 }
 
 
 func (s *Schema) Name(t string) string {
-	if s.s == "" {
+	if s.schema == "" {
 		return t
 	}
-	return s.s +"."+ t
+	return s.schema +"."+ t
+}
+
+
+func (s *Schema) SafeName(t string) string {
+	if s.schema == "" {
+		return "`"+ t +"`"
+	}
+	return "`"+ s.schema +"`.`"+ t +"`"
 }
 
 
 type Table struct {
 	Name 				string
+	schema      Schema
 	Columns 		[]string
 	// [列索引]`列名`
 	SafeCol     []string
@@ -35,6 +44,7 @@ type Table struct {
 	PrimaryKey 	map[string]int
 	// [主键列索引]
 	PrimaryIndex []int
+	// 任何字面值都不可能是空字符串
 	Rows 				[][]string
 	// [主键值]Rows索引
 	pkrow_index map[string]int
@@ -42,6 +52,11 @@ type Table struct {
 	col_index   map[string]int
 	// [列名]列定义
 	ColDef      map[string]*sqlparser.ColumnDefinition
+}
+
+
+func (t *Table) SafeName() string {
+	return t.schema.SafeName(t.Name)
 }
 
 
@@ -138,7 +153,7 @@ func (s *TableDataBuilder) put(r Render) {
 
 
 func (s *TableDataBuilder) putrs(str string) {
-	if !s.Render {
+	if str=="" || (!s.Render) {
 		return
 	}
 	s.put(func(w io.Writer) (int, error) {
@@ -193,10 +208,6 @@ type DiffDataBuilder struct {
 
 
 func (d *DiffDataBuilder) writeInsert(t *Table, ins string) error {
-	// 这里应该检测表结构不同做什么
-	// 如果baset有的列t没有,则输出 ALTER TABLE DROP COLUMN
-	// 如果t有的列baset没有则输出 ALTER TABLE ADD COLUMN
-	// 用 Table {ColDef []*sqlparser.ColumnDefinition}
 	baset, _ := d.base.GetTable(t.Name)
 	// 如果是新建表 则全部输出
 	if baset == nil {
@@ -204,14 +215,9 @@ func (d *DiffDataBuilder) writeInsert(t *Table, ins string) error {
 		t.Rows = nil
 		return nil
 	}
-	//如果baset有行的t没有则输出 delete 
-	//如果t有的baset没有则输出 insert
-	//如果都有则按列比较不同的数据进行update,如果表结构不同以t为基础迭代
-	//比较完成把 t.rows清空
 	if err := d.diffColumns(baset, t); err != nil {
     return err
   }
-
   d.diffRows(baset, t)
   t.Rows = nil
   return nil
@@ -222,8 +228,8 @@ func (d *DiffDataBuilder) diffColumns(base, cur *Table) error {
   for name := range base.ColDef {
     if _, ok := cur.ColDef[name]; !ok {
       d.putrs(fmt.Sprintf(
-        "ALTER TABLE `%s` DROP COLUMN %s;",
-        cur.Name, name,
+        "ALTER TABLE %s DROP COLUMN %s;",
+        cur.SafeName(), name,
       ))
     }
   }
@@ -231,9 +237,8 @@ func (d *DiffDataBuilder) diffColumns(base, cur *Table) error {
   for name, col := range cur.ColDef {
     if _, ok := base.ColDef[name]; !ok {
       d.putrs(fmt.Sprintf(
-        "ALTER TABLE `%s` ADD COLUMN %s;",
-        cur.Name,
-        sqlparser.String(col),
+        "ALTER TABLE %s ADD COLUMN %s;",
+        cur.SafeName(), sqlparser.String(col),
       ))
     }
   }
@@ -286,24 +291,29 @@ func sameRow(base *Table, old []string, cur *Table, row []string) bool {
 
 
 func makeWhereWithPK(t *Table, row []string) string {
-	where := ""
+	where := strings.Builder{}
 	wi := 0
 	for _, i := range t.PrimaryIndex {
 		if wi > 0 {
-			where += " AND "
+			where.WriteString(" AND ")
 		}
-		where += t.SafeCol[i] +"="+ row[i]
+		where.WriteString(t.SafeCol[i])
+		where.WriteString("=")
+		where.WriteString(row[i])
 		wi += 1
 	}
-	return where
+	return where.String()
 }
 
 
 func (d *DiffDataBuilder) makeUpdate(t *Table, old, new []string) string {
 	where := makeWhereWithPK(t, new)
-	set := ""
+	set := strings.Builder{}
 	si := 0
 	for i, col := range t.Columns {
+		if new[i] == "" {
+			continue
+		}
 		if _, has := t.PrimaryKey[col]; has {
 			continue
 		}
@@ -312,17 +322,23 @@ func (d *DiffDataBuilder) makeUpdate(t *Table, old, new []string) string {
 			continue
 		}
 		oi := ot.col_index[col]
-		if oi<len(old) && i<len(new) && old[oi]==new[i] {
+		if oi>=len(old) || i>=len(new) || old[oi]==new[i] {
 			continue
 		}
 
 		if si > 0 {
-			set += ", "
+			set.WriteString(", ")
 		}
-		set += t.SafeCol[i] +"="+ new[i]
+		set.WriteString(t.SafeCol[i])
+		set.WriteString(" = ")
+		set.WriteString(new[i])
 		si += 1
 	}
-	return fmt.Sprintf("Update %s \n\tSet %s \n\tWhere %s", t.Name, set, where)
+	if si == 0 {
+		return ""
+	}
+	return fmt.Sprintf("Update %s \n\tSet %s \n\tWhere %s", 
+		t.Name, set.String(), where)
 }
 
 
@@ -333,8 +349,21 @@ func (d *DiffDataBuilder) makeDelete(t *Table, row []string) string {
 
 
 func (d *DiffDataBuilder) makeInsert(t *Table, row []string) string {
-	_cols := strings.Join(t.SafeCol, ",")
-	_rows := strings.Join(row, ",")
+	_cols := ""
+	_rows := ""
+	c := 0
+	for i, v := range row {
+		if v == "" {
+			continue
+		}
+		if c > 0 {
+			_rows += ", "
+			_cols += ", "
+		}
+		_rows += v
+		_cols += t.SafeCol[i]
+		c += 1
+	}
 	return fmt.Sprintf("INSERT INTO %s (%s) VALUES \n\t(%s)", t.Name, _cols, _rows)
 }
 

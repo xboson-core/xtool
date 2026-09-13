@@ -32,6 +32,7 @@ INSERT INTO `same_table` (`id`,`value`) VALUES
 CREATE TABLE `composite_pk` (
   `a` INT NOT NULL,
   `b` INT NOT NULL,
+  `select` INT default 10,
   `value` VARCHAR(50),
   PRIMARY KEY (`a`,`b`)
 );

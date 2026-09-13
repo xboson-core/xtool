@@ -85,6 +85,7 @@ func parseCreateTable(node *sqlparser.CreateTable, sch Schema) *Table {
 		pkrow_index: 	make(map[string]int),
 		col_index: 		make(map[string]int),
 		ColDef: 			make(map[string]*sqlparser.ColumnDefinition),
+		schema:       sch,
 	}
 	t.Columns = make([]string, len(node.TableSpec.Columns))
 	t.SafeCol = make([]string, len(node.TableSpec.Columns))
@@ -126,7 +127,11 @@ func parseInsert(node *sqlparser.Insert, t *Table) {
 			colsIndex[col.String()] = i
 		}
 		for i, n := range t.Columns {
-			colsIndexIndex[i] = colsIndex[n]
+			if c, has := colsIndex[n]; has {
+				colsIndexIndex[i] = c
+			} else {
+				colsIndexIndex[i] = -1
+			}
 		}
 	}
 
@@ -136,10 +141,18 @@ func parseInsert(node *sqlparser.Insert, t *Table) {
 	}
 
 	for _, row := range rows {
-		_row := make([]string, len(row))
-		for i, val := range row {
+		_row := make([]string, len(t.Columns))
+		
+		for i, _ := range t.Columns {
 			ci := colsIndexIndex[i]
-			_row[ci] = sqlparser.String(val)
+			if ci < 0 || ci >= len(row) {
+				continue
+			}
+			val := row[ci]
+			if val == nil {
+				continue
+			} 
+			_row[i] = sqlparser.String(val)
 		}
 		rowNumber := len(t.Rows)
 		t.Rows = append(t.Rows, _row)
