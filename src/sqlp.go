@@ -38,10 +38,10 @@ func EachSqlFrom(file string, sp SqlProcess) error {
 		if sql != "" {
 			stmt, err := parser.Parse(sql)
 			if err != nil {
-				// fmt.Println(" --", err)
+				fmt.Println("[WARN]", err)
+				// fmt.Println(sql)
 				return nil
 			}
-
 			if err := sp.OnSql(stmt, sql); err != nil {
 				return err
 			}
@@ -49,25 +49,54 @@ func EachSqlFrom(file string, sp SqlProcess) error {
 		return nil
 	}
 
+	var quote byte = 0
 	for {
-		chunk, err := r.ReadString(';')
-		if len(chunk) > 0 {
-			buf.WriteString(chunk)
-			if chunk[len(chunk)-1] == ';' {
-				sql := buf.String()
-				buf.Reset()
-				if err := parse(sql); err != nil {
-					return err
-				}
-			}
-		}
-
+		ch, err := r.ReadByte()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
 			}
 			return err
 		}
+
+		buf.WriteByte(ch)
+		if quote != 0 {
+			// SQL 字符串中的反斜杠转义
+			if ch == '\\' {
+				if next, err := r.ReadByte(); err == nil {
+					buf.WriteByte(next)
+				}
+				continue
+			}
+			// ''、""、`` 表示转义/重复的 quote
+			if ch == quote {
+				next, err := r.ReadByte()
+				if err == nil {
+					if next != quote {
+						// 不是连续 quote，把它放回去
+						_ = r.UnreadByte()
+						quote = 0
+					}
+					continue
+				}
+				quote = 0
+			}
+			continue
+		}
+		// 进入字符串
+		if ch == '\'' || ch == '"' || ch == '`' {
+			quote = ch
+			continue
+		}
+		// 只有不在字符串中的 ; 才进行切割
+		if ch == ';' {
+			sql := buf.String()
+			buf.Reset()
+			if err := parse(sql); err != nil {
+				return err
+			}
+		}
+		quote = 0
 	}
 
 	if err := parse(buf.String()); err != nil {
@@ -112,6 +141,12 @@ func parseCreateTable(node *sqlparser.CreateTable, sch Schema) *Table {
 
 
 func parseInsert(node *sqlparser.Insert, t *Table) {
+	if len(t.PrimaryKey) < 1 {
+		fmt.Printf("[WARN] Table %s has no primary key,\n", t.SafeName())
+		fmt.Println("\tINSERT operations cannot be processed, and all data is ignored.")
+		return
+	}
+
 	colsIndexIndex := make(map[int]int)
 	tableName := node.Table.TableNameString()
 	if t.Columns == nil {
