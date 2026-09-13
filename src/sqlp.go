@@ -119,6 +119,7 @@ func EachSqlFrom(file string, sp SqlProcess) error {
 func parseCreateTable(node *sqlparser.CreateTable, sch Schema) *Table {
 	t := &Table{
 		Name: 				sch.Name(node.Table.Name.String()),
+		Simple:       node.Table.Name.String(),
 		PrimaryKey: 	make(map[string]int),
 		pkrow_index: 	make(map[string]int),
 		col_index: 		make(map[string]int),

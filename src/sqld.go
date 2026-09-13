@@ -39,6 +39,7 @@ func (s *Schema) SafeName(t string) string {
 
 type Table struct {
 	Name 				string
+	Simple      string
 	schema      Schema
 	Columns 		[]string
 	// [列索引]`列名`
@@ -59,7 +60,7 @@ type Table struct {
 
 
 func (t *Table) SafeName() string {
-	return t.schema.SafeName(t.Name)
+	return t.schema.SafeName(t.Simple)
 }
 
 
@@ -387,7 +388,7 @@ func (d *DiffDataBuilder) makeInsert(t *Table, row []string) string {
 	}
 	return fmt.Sprintf(
 		"-- %d;\nINSERT INTO %s (%s) VALUES \n\t(%s);", 
-		d.curr_lm, t.Name, _cols.String(), _rows.String())
+		d.curr_lm, t.SafeName(), _cols.String(), _rows.String())
 }
 
 
@@ -477,20 +478,14 @@ func (d *DiffConfig) readConfigFrom(file string) {
 
 
 func (d *DiffConfig) SkipSchema(sch Schema) bool {
-	if d.skipSchema == nil {
-		return false
-	}
 	_, has := d.skipSchema[sch.schema]
-	return !has
+	return has
 }
 
 
 func (d *DiffConfig) SkipTable(tname string) bool {
-	if d.skipTable == nil {
-		return false
-	}
 	_, has := d.skipTable[tname]
-	return !has
+	return has
 }
 
 
