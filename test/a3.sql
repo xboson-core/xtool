@@ -6,8 +6,8 @@ Update users
 Update users 
 	Set `email`='bob@example.com' 
 	Where `id`=2
-INSERT INTO users (`id`,`name`,`age`,`email`) VALUES 
-	(4,'David',25,'david@example.com')
+INSERT INTO users (`id`,`age`,`name`,`email`) VALUES 
+	(4,25,'David','david@example.com')
 
 
 CREATE TABLE `new_table` (

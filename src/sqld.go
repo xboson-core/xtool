@@ -258,7 +258,6 @@ func (d *DiffDataBuilder) diffRows(base, cur *Table) {
     }
 
     old := base.Rows[i]
-		fmt.Println("ckkkkkk", old, row)
     if !sameRow(base, old, cur, row) {
       d.putrs(d.makeUpdate(cur, old, row))
     }
@@ -308,7 +307,12 @@ func (d *DiffDataBuilder) makeUpdate(t *Table, old, new []string) string {
 		if _, has := t.PrimaryKey[col]; has {
 			continue
 		}
-		if i<len(old) && i<len(new) && old[i]==new[i] {
+		ot, err := d.base.GetTable(t.Name)
+		if err != nil {
+			continue
+		}
+		oi := ot.col_index[col]
+		if oi<len(old) && i<len(new) && old[oi]==new[i] {
 			continue
 		}
 

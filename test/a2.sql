@@ -1,7 +1,7 @@
 CREATE TABLE `users` (
   `id` INT NOT NULL,
-  `name` VARCHAR(50) NOT NULL,
   `age` INT DEFAULT 0,
+  `name` VARCHAR(50) NOT NULL,
   `email` VARCHAR(100) DEFAULT NULL,
   PRIMARY KEY (`id`)
 );
