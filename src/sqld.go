@@ -338,14 +338,14 @@ func (d *DiffDataBuilder) makeUpdate(t *Table, old, new []string) string {
 		return ""
 	}
 	return fmt.Sprintf(
-		"UPDATE %s \n\tSET %s \n\tWHERE %s", 
+		"UPDATE %s \n\tSET %s \n\tWHERE %s;", 
 		t.SafeName(), set.String(), where)
 }
 
 
 func (d *DiffDataBuilder) makeDelete(t *Table, row []string) string {
 	where := makeWhereWithPK(t, row)
-	return fmt.Sprintf("DELETE FROM %s where %s", t.SafeName(), where)
+	return fmt.Sprintf("DELETE FROM %s where %s;", t.SafeName(), where)
 }
 
 
@@ -366,7 +366,7 @@ func (d *DiffDataBuilder) makeInsert(t *Table, row []string) string {
 		c += 1
 	}
 	return fmt.Sprintf(
-		"INSERT INTO %s (%s) VALUES \n\t(%s)", 
+		"INSERT INTO %s (%s) VALUES \n\t(%s);", 
 		t.Name, _cols.String(), _rows.String())
 }
 
