@@ -1,11 +1,11 @@
 ALTER TABLE `users` ADD COLUMN email VARCHAR(100) default null;
-DELETE FROM users where `id`=1
-DELETE FROM users where `id`=2
 DELETE FROM users where `id`=3
-INSERT INTO users (`id`,`name`,`age`,`email`) VALUES 
-	(1,'Alice',21,'alice@example.com')
-INSERT INTO users (`id`,`name`,`age`,`email`) VALUES 
-	(2,'Bob',30,'bob@example.com')
+Update users 
+	Set `age`=21, `email`='alice@example.com' 
+	Where `id`=1
+Update users 
+	Set `email`='bob@example.com' 
+	Where `id`=2
 INSERT INTO users (`id`,`name`,`age`,`email`) VALUES 
 	(4,'David',25,'david@example.com')
 
@@ -17,23 +17,14 @@ CREATE TABLE `new_table` (
 );
 
 INSERT INTO `new_table` (`id`,`title`) VALUES
-(1,'hello'),
-(2,'world');
-DELETE FROM same_table where `id`=1
-DELETE FROM same_table where `id`=2
-INSERT INTO same_table (`id`,`value`) VALUES 
-	(1,'same')
-INSERT INTO same_table (`id`,`value`) VALUES 
-	(2,'unchanged')
-DELETE FROM composite_pk where `a`=1 AND `b`=1
+    (1,'hello'),
+    (2,'world');
 DELETE FROM composite_pk where `a`=1 AND `b`=2
-DELETE FROM composite_pk where `a`=2 AND `b`=1
-INSERT INTO composite_pk (`a`,`b`,`value`) VALUES 
-	(1,1,'one changed')
+Update composite_pk 
+	Set `value`='one changed' 
+	Where `a`=1 AND `b`=1
 INSERT INTO composite_pk (`a`,`b`,`value`) VALUES 
 	(1,3,'new row')
-INSERT INTO composite_pk (`a`,`b`,`value`) VALUES 
-	(2,1,'three')
 
 
 CREATE Table `create` (

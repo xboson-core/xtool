@@ -244,20 +244,21 @@ func (d *DiffDataBuilder) diffColumns(base, cur *Table) error {
 func (d *DiffDataBuilder) diffRows(base, cur *Table) {
   for _, row := range base.Rows {
     key := base.rowPKeyValue(row)
-    if _, ok := cur.col_index[key]; !ok {
+    if _, ok := cur.pkrow_index[key]; !ok {
       d.putrs(d.makeDelete(cur, row))
     }
   }
 
   for _, row := range cur.Rows {
     key := cur.rowPKeyValue(row)
-    i, ok := base.col_index[key]
+    i, ok := base.pkrow_index[key]
     if !ok {
       d.putrs(d.makeInsert(cur, row))
       continue
     }
 
     old := base.Rows[i]
+		fmt.Println("ckkkkkk", old, row)
     if !sameRow(base, old, cur, row) {
       d.putrs(d.makeUpdate(cur, old, row))
     }
@@ -268,13 +269,13 @@ func (d *DiffDataBuilder) diffRows(base, cur *Table) {
 func sameRow(base *Table, old []string, cur *Table, row []string) bool {
   for name, _ := range cur.ColDef {
     if _, ok := base.ColDef[name]; !ok {
-      continue
+      return false
     }
 
-    oi := columnIndex(base.Columns, name)
-    ni := columnIndex(cur.Columns, name)
-    if oi < 0 || ni < 0 {
-      continue
+    oi, ohas := base.col_index[name]
+    ni, chas := cur.col_index[name]
+    if (!ohas) || (!chas) {
+      return false
     }
 
     if old[oi] != row[ni] {
@@ -282,16 +283,6 @@ func sameRow(base *Table, old []string, cur *Table, row []string) bool {
     }
   }
   return true
-}
-
-
-func columnIndex(cols []string, name string) int {
-  for i, col := range cols {
-    if col == name {
-      return i
-    }
-  }
-  return -1
 }
 
 
@@ -313,15 +304,21 @@ func (d *DiffDataBuilder) makeUpdate(t *Table, old, new []string) string {
 	where := makeWhereWithPK(t, new)
 	set := ""
 	si := 0
-	for i, col := range t.SafeCol {
-		// if t.PrimaryKey
+	for i, col := range t.Columns {
+		if _, has := t.PrimaryKey[col]; has {
+			continue
+		}
+		if i<len(old) && i<len(new) && old[i]==new[i] {
+			continue
+		}
+
 		if si > 0 {
 			set += ", "
 		}
-		set += col +"="+ new[i]
+		set += t.SafeCol[i] +"="+ new[i]
 		si += 1
 	}
-	return fmt.Sprintf("Update %s Set %s \n\tWhere %s", t.Name, set, where)
+	return fmt.Sprintf("Update %s \n\tSet %s \n\tWhere %s", t.Name, set, where)
 }
 
 

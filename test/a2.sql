@@ -7,9 +7,9 @@ CREATE TABLE `users` (
 );
 
 INSERT INTO `users` (`id`,`name`,`age`,`email`) VALUES
-(1,'Alice',21,'alice@example.com'),
-(2,'Bob',30,'bob@example.com'),
-(4,'David',25,'david@example.com');
+    (1,'Alice',21,'alice@example.com'),
+    (2,'Bob',30,'bob@example.com'),
+    (4,'David',25,'david@example.com');
 
 CREATE TABLE `new_table` (
   `id` INT NOT NULL,
@@ -17,8 +17,8 @@ CREATE TABLE `new_table` (
   PRIMARY KEY (`id`)
 );
 INSERT INTO `new_table` (`id`,`title`) VALUES
-(1,'hello'),
-(2,'world');
+    (1,'hello'),
+    (2,'world');
 
 CREATE TABLE `same_table` (
   `id` INT NOT NULL,
@@ -26,8 +26,8 @@ CREATE TABLE `same_table` (
   PRIMARY KEY (`id`)
 );
 INSERT INTO `same_table` (`id`,`value`) VALUES
-(1,'same'),
-(2,'unchanged');
+    (1,'same'),
+    (2,'unchanged');
 
 CREATE TABLE `composite_pk` (
   `a` INT NOT NULL,
@@ -36,9 +36,9 @@ CREATE TABLE `composite_pk` (
   PRIMARY KEY (`a`,`b`)
 );
 INSERT INTO `composite_pk` (`a`,`b`,`value`) VALUES
-(1,1,'one changed'),
-(1,3,'new row'),
-(2,1,'three');
+    (1,1,'one changed'),
+    (1,3,'new row'),
+    (2,1,'three');
 
 CREATE Table `create` (
   `insert` INT NOT NULL,
