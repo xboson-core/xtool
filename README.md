@@ -284,13 +284,38 @@ The result contains only the files that need to be updated, while `removed.txt` 
 
 ## SQL Diff
 
-The `-sqld` mode is reserved for future SQL/database diff functionality.
+The `--sqld` mode generates a SQL migration script by comparing a **base SQL file** with an **updated SQL file**.
 
-It is currently not implemented.
+In this mode:
+
+* `-b` specifies the base SQL file.
+* `-i` specifies the updated SQL file.
+* `-o` specifies the output SQL file.
+* The generated SQL contains the changes required to migrate the base database schema to the updated schema.
+
+The following options are required in `--sqld` mode:
+
+```text
+-b <file>    Base SQL file
+-i <file>    Updated SQL file
+-o <file>    Output SQL file
+```
+
+For example:
 
 ```bash
-xtool -sqld
+./xtool --sqld -b base.sql -i update.sql -o diff.sql
 ```
+
+This compares `base.sql` with `update.sql` and writes the generated migration SQL to `diff.sql`.
+
+The SQL Diff mode is intended to simplify database schema upgrades by generating migration statements from two SQL definitions, rather than requiring migration scripts to be written manually.
+
+> Note: This tool is designed solely to generate diffs for 
+  data exported by the `mysqldump` application; 
+  it is not a comprehensive SQL diff tool and 
+  cannot be used for other purposes.
+
 
 ## Build
 
