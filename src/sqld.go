@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"vitess.io/vitess/go/vt/sqlparser"
 )
@@ -28,10 +29,29 @@ func (s *Schema) Name(t string) string {
 type Table struct {
 	Name 				string
 	Columns 		[]string
-	PrimaryKey 	[]string
+	// [列索引]`列名`
+	SafeCol     []string
+	// [主键名]列索引
+	PrimaryKey 	map[string]int
+	// [主键列索引]
+	PrimaryIndex []int
 	Rows 				[][]string
-	index       map[string]int
+	// [主键值]Rows索引
+	pkrow_index map[string]int
+	// [列名]列索引
+	col_index   map[string]int
+	// [列名]列定义
 	ColDef      map[string]*sqlparser.ColumnDefinition
+}
+
+
+func (t *Table) rowPKeyValue(row []string) string {
+  var key string
+	for _, pi := range t.PrimaryIndex {
+		key += row[pi]
+		key += "\x00"
+	}
+  return key
 }
 
 
@@ -40,6 +60,7 @@ type TableDataBuilder struct {
 	renders 	 	[]Render
 	Render 		 	bool
 	nextInsert 	func(*Table, string)error
+	nextCreate  func(*Table, string)error
 	Schema      Schema
 }
 
@@ -82,10 +103,15 @@ func (s *TableDataBuilder) OnSql(st sqlparser.Statement, sql string) error {
 		if err := s.AddTable(table); err != nil {
 			return err
 		}
-		s.putrs(sql)
+		if s.nextCreate != nil {
+			if err := s.nextCreate(table, sql); err != nil {
+				return err
+			}
+		}
+
 
 	case *sqlparser.Update:
-			fmt.Println(">>> UPDATE")
+		panic(fmt.Errorf("Not support: %s", sql))
 
 	case *sqlparser.Use:
 		s.Schema = Schema{ node.DBName.String() }
@@ -196,7 +222,7 @@ func (d *DiffDataBuilder) diffColumns(base, cur *Table) error {
   for name := range base.ColDef {
     if _, ok := cur.ColDef[name]; !ok {
       d.putrs(fmt.Sprintf(
-        "ALTER TABLE `%s` DROP COLUMN `%s`;",
+        "ALTER TABLE `%s` DROP COLUMN %s;",
         cur.Name, name,
       ))
     }
@@ -217,15 +243,15 @@ func (d *DiffDataBuilder) diffColumns(base, cur *Table) error {
 
 func (d *DiffDataBuilder) diffRows(base, cur *Table) {
   for _, row := range base.Rows {
-    key := base.rowKey(row)
-    if _, ok := cur.index[key]; !ok {
+    key := base.rowPKeyValue(row)
+    if _, ok := cur.col_index[key]; !ok {
       d.putrs(d.makeDelete(cur, row))
     }
   }
 
   for _, row := range cur.Rows {
-    key := cur.rowKey(row)
-    i, ok := base.index[key]
+    key := cur.rowPKeyValue(row)
+    i, ok := base.col_index[key]
     if !ok {
       d.putrs(d.makeInsert(cur, row))
       continue
@@ -236,21 +262,6 @@ func (d *DiffDataBuilder) diffRows(base, cur *Table) {
       d.putrs(d.makeUpdate(cur, old, row))
     }
   }
-}
-
-
-func (t *Table) rowKey(row []string) string {
-  var key string
-  for _, name := range t.PrimaryKey {
-    for i, col := range t.Columns {
-      if col == name {
-        key += row[i]
-        key += "\x00"
-        break
-      }
-    }
-  }
-  return key
 }
 
 
@@ -284,21 +295,46 @@ func columnIndex(cols []string, name string) int {
 }
 
 
+func makeWhereWithPK(t *Table, row []string) string {
+	where := ""
+	wi := 0
+	for _, i := range t.PrimaryIndex {
+		if wi > 0 {
+			where += " AND "
+		}
+		where += t.SafeCol[i] +"="+ row[i]
+		wi += 1
+	}
+	return where
+}
+
+
 func (d *DiffDataBuilder) makeUpdate(t *Table, old, new []string) string {
-	//TODO
-	return fmt.Sprintf("Update %s Set %s Where %s", t.Name, new, old)
+	where := makeWhereWithPK(t, new)
+	set := ""
+	si := 0
+	for i, col := range t.SafeCol {
+		// if t.PrimaryKey
+		if si > 0 {
+			set += ", "
+		}
+		set += col +"="+ new[i]
+		si += 1
+	}
+	return fmt.Sprintf("Update %s Set %s \n\tWhere %s", t.Name, set, where)
 }
 
 
 func (d *DiffDataBuilder) makeDelete(t *Table, row []string) string {
-	//TODO
-	return fmt.Sprintf("Delete %s where %s", t.Name, row)
+	where := makeWhereWithPK(t, row)
+	return fmt.Sprintf("DELETE FROM %s where %s", t.Name, where)
 }
 
 
 func (d *DiffDataBuilder) makeInsert(t *Table, row []string) string {
-	//TODO
-	return fmt.Sprintf("Insert into %s (%s) Values (%s)", t.Name, t.Columns, row)
+	_cols := strings.Join(t.SafeCol, ",")
+	_rows := strings.Join(row, ",")
+	return fmt.Sprintf("INSERT INTO %s (%s) VALUES \n\t(%s)", t.Name, _cols, _rows)
 }
 
 
@@ -312,6 +348,14 @@ func (d *DiffDataBuilder) OnFinish() {
 }
 
 
+func (d *DiffDataBuilder) writeCreate(t *Table, sql string) error {
+	if _, has := d.base.tables[t.Name]; !has {
+		d.putrs(sql)
+	}
+	return nil
+}
+
+
 func NewDiffDataBuilder(b *TableDataBuilder) *DiffDataBuilder {
 	ret := &DiffDataBuilder{
 		TableDataBuilder: TableDataBuilder{
@@ -321,6 +365,7 @@ func NewDiffDataBuilder(b *TableDataBuilder) *DiffDataBuilder {
 		base: b,
 	}
 	ret.nextInsert = ret.writeInsert
+	ret.nextCreate = ret.writeCreate
 	return ret
 }
 

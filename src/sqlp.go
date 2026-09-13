@@ -80,20 +80,29 @@ func EachSqlFrom(file string, sp SqlProcess) error {
 
 func parseCreateTable(node *sqlparser.CreateTable, sch Schema) *Table {
 	t := &Table{
-		Name: sch.Name(node.Table.Name.String()),
-		ColDef: make(map[string]*sqlparser.ColumnDefinition),
-		index: make(map[string]int),
+		Name: 				sch.Name(node.Table.Name.String()),
+		PrimaryKey: 	make(map[string]int),
+		pkrow_index: 	make(map[string]int),
+		col_index: 		make(map[string]int),
+		ColDef: 			make(map[string]*sqlparser.ColumnDefinition),
 	}
-	t.Columns = make([]string, 0, len(node.TableSpec.Columns))
-	for _, col := range node.TableSpec.Columns {
-		t.Columns = append(t.Columns, col.Name.String())
-		t.ColDef[col.Name.String()] = col
+	t.Columns = make([]string, len(node.TableSpec.Columns))
+	t.SafeCol = make([]string, len(node.TableSpec.Columns))
+	for i, col := range node.TableSpec.Columns {
+		colName := col.Name.String()
+		t.Columns[i] = colName
+		t.SafeCol[i] = "`"+ colName +"`"
+		t.ColDef[colName] = col
+		t.col_index[colName] = i
 	}
 	for _, idx := range node.TableSpec.Indexes {
 		if idx.Info != nil &&
 			idx.Info.Type == sqlparser.IndexTypePrimary {
 			for _, col := range idx.Columns {
-				t.PrimaryKey = append(t.PrimaryKey, col.Column.String())
+				colName := col.Column.String()
+				colIndex := t.col_index[colName]
+				t.PrimaryKey[colName] = colIndex
+				t.PrimaryIndex = append(t.PrimaryIndex, colIndex)
 			}
 		}
 	}
@@ -102,33 +111,45 @@ func parseCreateTable(node *sqlparser.CreateTable, sch Schema) *Table {
 
 
 func parseInsert(node *sqlparser.Insert, t *Table) {
-	var cols []string
-	if node.Columns == nil {
-		cols = t.Columns
+	colsIndexIndex := make(map[int]int)
+	tableName := node.Table.TableNameString()
+	if t.Columns == nil {
+		panic(fmt.Errorf("Insert Table %s but not has DDL", tableName))
+	}
+	if len(node.Columns) < 1 {
+		for i, _ := range t.Columns {
+			colsIndexIndex[i] = i
+		}
 	} else {
-		for _, col := range node.Columns {
-			cols = append(cols, col.String())
+		colsIndex := make(map[string]int)
+		for i, col := range node.Columns {
+			colsIndex[col.String()] = i
+		}
+		for i, n := range t.Columns {
+			colsIndexIndex[i] = colsIndex[n]
 		}
 	}
 
-	switch rows := node.Rows.(type) {
-	case sqlparser.Values:
-		for _, row := range rows {
-			_row := make([]string, 0, len(rows))
-			for _, val := range row {
-				_row = append(_row, sqlparser.String(val))
-			}
-			rowNumber := len(t.Rows)
-			t.Rows = append(t.Rows, _row)
-
-			key := t.rowKey(_row)
-			if _, has := t.index[key]; has {
-				panic(fmt.Errorf("Primary key conflict %s", key))
-			}
-      t.index[key] = rowNumber
-		}
-
-	default:
+	rows, ok := node.Rows.(sqlparser.Values)
+	if !ok {
 		panic(fmt.Errorf("unsupported INSERT rows type: %T\n", node.Rows))
+	}
+
+	for _, row := range rows {
+		_row := make([]string, len(row))
+		for i, val := range row {
+			ci := colsIndexIndex[i]
+			_row[ci] = sqlparser.String(val)
+		}
+		rowNumber := len(t.Rows)
+		t.Rows = append(t.Rows, _row)
+
+		pkValue := t.rowPKeyValue(_row)
+		if cf, has := t.pkrow_index[pkValue]; has {
+			panic(
+				fmt.Errorf("Primary key conflict { %s=%s } (%s), Table: %s", 
+					t.PrimaryKey, pkValue, cf, t.Name))
+		}
+		t.pkrow_index[pkValue] = rowNumber
 	}
 }
