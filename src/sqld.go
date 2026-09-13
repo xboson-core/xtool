@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v3"
 	"vitess.io/vitess/go/vt/sqlparser"
 )
 
@@ -73,6 +74,7 @@ func (t *Table) rowPKeyValue(row []string) string {
 
 
 type TableDataBuilder struct {
+	DiffConfig
 	tables 			map[string]*Table
 	renders 	 	[]Render
 	Render 		 	bool
@@ -103,10 +105,17 @@ func (s *TableDataBuilder) GetTable(fullname string) (*Table, error) {
 
 func (s *TableDataBuilder) OnSql(st sqlparser.Statement, sql string, lm int) error {
 	s.curr_lm = lm
-	switch node := st.(type) {
+	if s.SkipSchema(s.Schema) {
+		return nil
+	}
 
+	switch node := st.(type) {
 	case *sqlparser.Insert:
-		table, err := s.GetTable(s.Schema.Name(node.Table.TableNameString()))
+		tableName := node.Table.TableNameString()
+		if s.SkipTable(tableName) {
+			return nil
+		}
+		table, err := s.GetTable(s.Schema.Name(tableName))
 		if err != nil {
 			return err
 		}
@@ -128,12 +137,14 @@ func (s *TableDataBuilder) OnSql(st sqlparser.Statement, sql string, lm int) err
 			}
 		}
 
-
 	case *sqlparser.Update:
 		panic(fmt.Errorf("Not support: %s", sql))
 
 	case *sqlparser.Use:
 		s.Schema = Schema{ node.DBName.String() }
+		if s.SkipSchema(s.Schema) {
+			return nil
+		}
 		s.putrs(fmt.Sprintf("-- %d;", s.curr_lm))
 		s.putrs(strings.TrimSpace(sql))
 
@@ -383,6 +394,9 @@ func (d *DiffDataBuilder) makeInsert(t *Table, row []string) string {
 func (d *DiffDataBuilder) OnFinish() {
 	// 迭代 base中的表, 在d中找不到就输出 
 	for name := range d.base.tables {
+		if d.SkipTable(name) {
+			continue
+		}
     if _, ok := d.tables[name]; !ok {
 			safename := d.base.tables[name].SafeName()
       d.putrs(fmt.Sprintf("DROP TABLE IF EXISTS %s;", safename))
@@ -405,13 +419,15 @@ func NewDiffDataBuilder(b *TableDataBuilder, bf, uf string) *DiffDataBuilder {
 		TableDataBuilder: TableDataBuilder{
 			Render: true,
 			tables: make(map[string]*Table),
+			DiffConfig: b.DiffConfig,
 		},
 		base: b,
 	}
 	ret.nextInsert = ret.writeInsert
 	ret.nextCreate = ret.writeCreate
 
-	ret.putrs(fmt.Sprintf("-- %s", time.Now()))
+	ret.putrs(fmt.Sprintf("-- %s", time.Now().Local()))
+
 	if ap, err := filepath.Abs(bf); err != nil {
 		ret.putrs(fmt.Sprintf("-- Base: %s", bf))
 	} else {
@@ -426,8 +442,68 @@ func NewDiffDataBuilder(b *TableDataBuilder, bf, uf string) *DiffDataBuilder {
 }
 
 
+type DiffConfig struct {
+	skipTable  map[string]int // 忽略的表数据
+	skipSchema map[string]int // 忽略的 db
+}
+
+
+func (d *DiffConfig) readConfigFrom(file string) {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		panic(err)
+	}
+
+	var cfg struct {
+		Skip struct {
+			Tables  []string `yaml:"tables"`
+			Schemas []string `yaml:"schemas"`
+		} `yaml:"skip"`
+	}
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		panic(err)
+	}
+
+	d.skipTable = make(map[string]int, len(cfg.Skip.Tables))
+	d.skipSchema = make(map[string]int, len(cfg.Skip.Schemas))
+
+	for i, name := range cfg.Skip.Tables {
+		d.skipTable[name] = i
+	}
+	for i, name := range cfg.Skip.Schemas {
+		d.skipSchema[name] = i
+	}
+}
+
+
+func (d *DiffConfig) SkipSchema(sch Schema) bool {
+	if d.skipSchema == nil {
+		return false
+	}
+	_, has := d.skipSchema[sch.schema]
+	return !has
+}
+
+
+func (d *DiffConfig) SkipTable(tname string) bool {
+	if d.skipTable == nil {
+		return false
+	}
+	_, has := d.skipTable[tname]
+	return !has
+}
+
+
+func (d *DiffConfig) Skipst(sch Schema, tname string) bool {
+	return d.SkipSchema(sch) || d.SkipTable(tname)
+}
+
+
 func SqlDiff(o *Options) error {
 	base := NewTableDataBuilder()
+	if o.SqlConfig != "" {
+		base.readConfigFrom(o.SqlConfig)
+	}
 	if err := EachSqlFrom(o.Base, base); err != nil {
 		return err
 	}

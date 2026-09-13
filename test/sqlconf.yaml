@@ -1,0 +1,26 @@
+skip:
+  tables:
+    - sys_pl_log_system_error
+    - sys_pl_log_topic
+    - sys_pl_log_uimodify
+    - sys_pl_log_unauth
+    - sys_pl_log_access
+    - sys_pl_log_request
+    - sys_pl_log_scheduler
+    - sys_pl_log_slow
+    - sys_pl_log_esb
+    - sys_pl_log_esb_statistics
+    - sys_pl_log_esb_summary
+    - sys_pl_log_etl
+    - sys_pl_log_etl_statistics
+    - sys_pl_log_etl_statistics_data
+    - sys_pl_log_etl_summary
+  schemas:
+    - mysql
+    - 3da44270469945f19fa7192c9a6a5d44
+    - 8bce2c053ede4606805f97511692724d
+    - 3da44270469945f19fa7192c9a6a5d44
+    - 649de03e8ef0435593b14c54cb52b0fa
+    - afb9a9a1c80647e6a0d7e807f68e055a
+    - bc02994ec23341708e54c97f6b3f9f48
+    # - 61a9ba99b94a4325ac747b4a9263df68

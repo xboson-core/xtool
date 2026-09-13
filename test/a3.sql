@@ -1,4 +1,4 @@
--- 2026-09-13 12:19:08.9677864 +0800 CST m=+0.010437901
+-- 2026-09-13 13:01:16.344926 +0800 CST
 -- Base: D:\javaee-project\xboson-open-source\xtool\test\a1.sql
 -- Diff: D:\javaee-project\xboson-open-source\xtool\test\a2.sql
 -- 1;

@@ -30,4 +30,5 @@ test5: build
 	./xtool --sqld \
 		-b 'D:/javaee-project/xboson-docker/$$upload/db/dump.db' \
 		-i D:/javaee-project/xboson-open-source/mysql/data/10.xboson-mysql-init.sql \
-		-o test/xboson-diff.ign.sql
+		-o test/xboson-diff.ign.sql \
+		-df test/sqlconf.yaml

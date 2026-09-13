@@ -15,6 +15,7 @@ type Options struct {
 	Meta        string
 	ExcludeFrom string
 	DeleteFile  string
+	SqlConfig   string
 	Verbose     bool
 	Line        bool
 }
@@ -42,6 +43,7 @@ func ParseArgs() *Options {
 	f.StringVar(&opt.Meta, "meta", "", "meta csv")
 	f.StringVar(&opt.ExcludeFrom, "exclude-from", "", "exclude file")
 	f.StringVar(&opt.DeleteFile, "del", "", "save removed file")
+	f.StringVar(&opt.SqlConfig, "df", "", "config sql diff yaml file")
 	f.BoolVar(&opt.Verbose, "v", false, "show progress")
 	f.BoolVar(&opt.Line, "l", false, "show progress in one line")
 	f.Parse(os.Args[1:])
