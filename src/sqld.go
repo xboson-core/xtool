@@ -80,9 +80,8 @@ type TableDataBuilder struct {
 	renders 	 	[]Render
 	Render 		 	bool
 	nextInsert 	func(*Table, string)error
-	nextCreate  func(*Table, string)error
+	nextCreate  func(*Table, string, int)error
 	Schema      Schema
-	curr_lm     int
 }
 
 
@@ -105,7 +104,6 @@ func (s *TableDataBuilder) GetTable(fullname string) (*Table, error) {
 
 
 func (s *TableDataBuilder) OnSql(st sqlparser.Statement, sql string, lm int) error {
-	s.curr_lm = lm
 	if s.SkipSchema(s.Schema) {
 		return nil
 	}
@@ -133,7 +131,7 @@ func (s *TableDataBuilder) OnSql(st sqlparser.Statement, sql string, lm int) err
 			return err
 		}
 		if s.nextCreate != nil {
-			if err := s.nextCreate(table, sql); err != nil {
+			if err := s.nextCreate(table, sql, lm); err != nil {
 				return err
 			}
 		}
@@ -146,7 +144,7 @@ func (s *TableDataBuilder) OnSql(st sqlparser.Statement, sql string, lm int) err
 		if s.SkipSchema(s.Schema) {
 			return nil
 		}
-		s.putrs(fmt.Sprintf("-- %d;", s.curr_lm))
+		s.putrs(fmt.Sprintf("-- %d;", lm))
 		s.putrs(strings.TrimSpace(sql))
 
 	case *sqlparser.DropTable:
@@ -155,8 +153,9 @@ func (s *TableDataBuilder) OnSql(st sqlparser.Statement, sql string, lm int) err
 		// donothing
 
 	default:
-		s.putrs(fmt.Sprintf("-- %d;", s.curr_lm))
-		s.putrs(strings.TrimSpace(sql))
+		// s.putrs(fmt.Sprintf("-- %d;", s.curr_lm))
+		// s.putrs(strings.TrimSpace(sql))
+		// donothing
 	}
 
 	return nil
@@ -229,21 +228,14 @@ func (d *DiffDataBuilder) writeInsert(t *Table, insSql string) error {
 	baset, _ := d.base.GetTable(t.Name)
 	// 如果是新建表 则全部输出
 	if baset == nil {
-		d.putrs(fmt.Sprintf("-- %d;", d.curr_lm))
 		d.putrs(strings.TrimSpace(insSql))
-		t.Rows = nil
 		return nil
 	}
-	if err := d.diffColumns(baset, t); err != nil {
-    return err
-  }
-  d.diffRows(baset, t)
-  t.Rows = nil
   return nil
 }
 
 
-func (d *DiffDataBuilder) diffColumns(base, cur *Table) error {
+func (d *DiffDataBuilder) diffColumns(base, cur *Table) {
   for name := range base.ColDef {
     if _, ok := cur.ColDef[name]; !ok {
       d.putrs(fmt.Sprintf(
@@ -261,7 +253,6 @@ func (d *DiffDataBuilder) diffColumns(base, cur *Table) error {
       ))
     }
   }
-  return nil
 }
 
 
@@ -357,16 +348,16 @@ func (d *DiffDataBuilder) makeUpdate(t *Table, old, new []string) string {
 		return ""
 	}
 	return fmt.Sprintf(
-		"-- %d;\nUPDATE %s \n\tSET %s \n\tWHERE %s;", 
-		d.curr_lm, t.SafeName(), set.String(), where)
+		"UPDATE %s \n\tSET %s \n\tWHERE %s;", 
+		t.SafeName(), set.String(), where)
 }
 
 
 func (d *DiffDataBuilder) makeDelete(t *Table, row []string) string {
 	where := makeWhereWithPK(t, row)
 	return fmt.Sprintf(
-		"-- %d;\nDELETE FROM %s where %s;", 
-		d.curr_lm, t.SafeName(), where)
+		"DELETE FROM %s where %s;", 
+		t.SafeName(), where)
 }
 
 
@@ -387,8 +378,8 @@ func (d *DiffDataBuilder) makeInsert(t *Table, row []string) string {
 		c += 1
 	}
 	return fmt.Sprintf(
-		"-- %d;\nINSERT INTO %s (%s) VALUES \n\t(%s);", 
-		d.curr_lm, t.SafeName(), _cols.String(), _rows.String())
+		"INSERT INTO %s (%s) VALUES \n\t(%s);", 
+		 t.SafeName(), _cols.String(), _rows.String())
 }
 
 
@@ -398,17 +389,22 @@ func (d *DiffDataBuilder) OnFinish() {
 		if d.SkipTable(name) {
 			continue
 		}
-    if _, ok := d.tables[name]; !ok {
-			safename := d.base.tables[name].SafeName()
+		baset := d.base.tables[name]
+		t, has := d.tables[name]
+    if !has {
+			safename := baset.SafeName()
       d.putrs(fmt.Sprintf("DROP TABLE IF EXISTS %s;", safename))
+			continue
     }
+		d.diffColumns(baset, t)
+		d.diffRows(baset, t) 
   }
 }
 
 
-func (d *DiffDataBuilder) writeCreate(t *Table, sql string) error {
+func (d *DiffDataBuilder) writeCreate(t *Table, sql string, lm int) error {
 	if _, has := d.base.tables[t.Name]; !has {
-		d.putrs(fmt.Sprintf("-- %d;", d.curr_lm))
+		d.putrs(fmt.Sprintf("-- %d;", lm))
 		d.putrs(strings.TrimSpace(sql))
 	}
 	return nil

@@ -39,7 +39,6 @@ func EachSqlFrom(file string, sp SqlProcess) error {
 			stmt, err := parser.Parse(sql)
 			if err != nil {
 				fmt.Println("[WARN]", err)
-				// fmt.Println(sql)
 				return nil
 			}
 			if err := sp.OnSql(stmt, sql, linenum); err != nil {
@@ -58,10 +57,8 @@ func EachSqlFrom(file string, sp SqlProcess) error {
 			}
 			return err
 		}
-
 		if ch == '\n' {
 			linenum += 1
-			continue
 		}
 
 		buf.WriteByte(ch)

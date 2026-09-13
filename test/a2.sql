@@ -1,6 +1,11 @@
 CREATE DATABASE  `test` /*!40100 DEFAULT CHARACTER SET utf8 */;
 USE `test`;
-
+--
+-- Table structure for table `users`
+--
+DROP TABLE IF EXISTS `users`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `users` (
   `id` INT NOT NULL,
   `age` INT DEFAULT 0,
@@ -8,6 +13,7 @@ CREATE TABLE `users` (
   `email` VARCHAR(100) DEFAULT NULL,
   PRIMARY KEY (`id`)
 );
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 INSERT INTO `users` (`id`,`name`,`age`,`email`) VALUES
     (1,'Alice',21,'alice@example.com'),

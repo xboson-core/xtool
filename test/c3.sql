@@ -1,0 +1,3 @@
+-- 2026-09-13 14:53:24.1882401 +0800 CST
+-- Base: D:\javaee-project\xboson-open-source\xtool\test\c1.sql
+-- Diff: D:\javaee-project\xboson-open-source\xtool\test\c1.sql
