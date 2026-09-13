@@ -13,7 +13,7 @@ import (
 
 
 type SqlProcess interface {
-	OnSql(st sqlparser.Statement, sql string) error
+	OnSql(st sqlparser.Statement, sql string, lineNum int) error
 	OnFinish()
 }
 
@@ -23,16 +23,16 @@ func EachSqlFrom(file string, sp SqlProcess) error {
 	if err != nil {
 		return err
 	}
-
 	f, err := os.Open(file)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
+	fmt.Println("Loading file:", file)
 	r := bufio.NewReader(f)
 	var buf strings.Builder
-	fmt.Println("Loading file:", file)
+	linenum := 1
 
 	var parse = func(sql string) error {
 		if sql != "" {
@@ -42,7 +42,7 @@ func EachSqlFrom(file string, sp SqlProcess) error {
 				// fmt.Println(sql)
 				return nil
 			}
-			if err := sp.OnSql(stmt, sql); err != nil {
+			if err := sp.OnSql(stmt, sql, linenum); err != nil {
 				return err
 			}
 		}
@@ -59,12 +59,20 @@ func EachSqlFrom(file string, sp SqlProcess) error {
 			return err
 		}
 
+		if ch == '\n' {
+			linenum += 1
+			continue
+		}
+
 		buf.WriteByte(ch)
 		if quote != 0 {
 			// SQL 字符串中的反斜杠转义
 			if ch == '\\' {
 				if next, err := r.ReadByte(); err == nil {
 					buf.WriteByte(next)
+					if next == '\n' {
+						linenum += 1
+					}
 				}
 				continue
 			}
@@ -92,6 +100,7 @@ func EachSqlFrom(file string, sp SqlProcess) error {
 		if ch == ';' {
 			sql := buf.String()
 			buf.Reset()
+
 			if err := parse(sql); err != nil {
 				return err
 			}
@@ -140,9 +149,9 @@ func parseCreateTable(node *sqlparser.CreateTable, sch Schema) *Table {
 }
 
 
-func parseInsert(node *sqlparser.Insert, t *Table) {
+func parseInsert(node *sqlparser.Insert, t *Table, lm int) {
 	if len(t.PrimaryKey) < 1 {
-		fmt.Printf("[WARN] Table %s has no primary key,\n", t.SafeName())
+		fmt.Printf("[WARN] Table %s has no primary key at:%d,\n", t.SafeName(), lm)
 		fmt.Println("\tINSERT operations cannot be processed, and all data is ignored.")
 		return
 	}
@@ -150,7 +159,7 @@ func parseInsert(node *sqlparser.Insert, t *Table) {
 	colsIndexIndex := make(map[int]int)
 	tableName := node.Table.TableNameString()
 	if t.Columns == nil {
-		panic(fmt.Errorf("Insert Table %s but not has DDL", tableName))
+		panic(fmt.Errorf("Insert Table %s but not has DDL at:%d", tableName, lm))
 	}
 	if len(node.Columns) < 1 {
 		for i, _ := range t.Columns {
@@ -172,7 +181,7 @@ func parseInsert(node *sqlparser.Insert, t *Table) {
 
 	rows, ok := node.Rows.(sqlparser.Values)
 	if !ok {
-		panic(fmt.Errorf("unsupported INSERT rows type: %T\n", node.Rows))
+		panic(fmt.Errorf("unsupported INSERT rows type: %T, at:%d", node.Rows, lm))
 	}
 
 	for _, row := range rows {
@@ -195,8 +204,8 @@ func parseInsert(node *sqlparser.Insert, t *Table) {
 		pkValue := t.rowPKeyValue(_row)
 		if cf, has := t.pkrow_index[pkValue]; has {
 			panic(
-				fmt.Errorf("Primary key conflict { %s=%s } (%s), Table: %s", 
-					t.PrimaryKey, pkValue, cf, t.Name))
+				fmt.Errorf("Primary key conflict { %s=%s } (%s), Table: %s, at:%d", 
+					t.PrimaryKey, pkValue, cf, t.Name, lm))
 		}
 		t.pkrow_index[pkValue] = rowNumber
 	}

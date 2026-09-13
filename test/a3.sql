@@ -1,40 +1,42 @@
-ALTER TABLE `users` ADD COLUMN email VARCHAR(100) default null;
-DELETE FROM `users` where `id` = 3;
-UPDATE `users` 
+-- 2026-09-13 12:19:08.9677864 +0800 CST m=+0.010437901
+-- Base: D:\javaee-project\xboson-open-source\xtool\test\a1.sql
+-- Diff: D:\javaee-project\xboson-open-source\xtool\test\a2.sql
+-- 1;
+CREATE DATABASE  `test` /*!40100 DEFAULT CHARACTER SET utf8 */;
+-- 2;
+USE `test`;
+ALTER TABLE `test`.`test.users` ADD COLUMN email VARCHAR(100) default null;
+-- 15;
+DELETE FROM `test`.`test.users` where `id` = 3;
+-- 15;
+UPDATE `test`.`test.users` 
 	SET `age` = 21, `email` = 'alice@example.com' 
 	WHERE `id` = 1;
-UPDATE `users` 
+-- 15;
+UPDATE `test`.`test.users` 
 	SET `email` = 'bob@example.com' 
 	WHERE `id` = 2;
-INSERT INTO users (`id`, `age`, `name`, `email`) VALUES 
+-- 15;
+INSERT INTO test.users (`id`, `age`, `name`, `email`) VALUES 
 	(4, 25, 'David', 'david@example.com');
-
-
-CREATE TABLE `new_table` (
-  `id` INT NOT NULL,
-  `title` VARCHAR(100) NOT NULL,
-  PRIMARY KEY (`id`)
-);
-
-INSERT INTO `new_table` (`id`,`title`) VALUES
-    (1,'hello'),
-    (2,'world');
-ALTER TABLE `composite_pk` ADD COLUMN `select` INT default 10;
-DELETE FROM `composite_pk` where `a` = 1 AND `b` = 2;
-UPDATE `composite_pk` 
+-- 21;
+CREATE TABLE `new_table` (  `id` INT NOT NULL,  `title` VARCHAR(100) NOT NULL,  PRIMARY KEY (`id`));
+-- 24;
+INSERT INTO `new_table` (`id`,`title`) VALUES    (1,'hello'),    (2,'world');
+ALTER TABLE `test`.`test.composite_pk` ADD COLUMN `select` INT default 10;
+-- 45;
+DELETE FROM `test`.`test.composite_pk` where `a` = 1 AND `b` = 2;
+-- 45;
+UPDATE `test`.`test.composite_pk` 
 	SET `value` = 'one changed' 
 	WHERE `a` = 1 AND `b` = 1;
-INSERT INTO composite_pk (`a`, `b`, `value`) VALUES 
+-- 45;
+INSERT INTO test.composite_pk (`a`, `b`, `value`) VALUES 
 	(1, 3, 'new row');
-
-
-CREATE Table `create` (
-  `insert` INT NOT NULL,
-  `alert` INT DEFAULT 0,
-  PRIMARY KEY (`insert`)
-);
-
+-- 51;
+CREATE Table `create` (  `insert` INT NOT NULL,  `alert` INT DEFAULT 0,  PRIMARY KEY (`insert`));
+-- 52;
 INSERT INTO `create` (`insert`,`alert`) VALUES (1, 2);
-
+-- 53;
 INSERT INTO `create` VALUES (3, 4);
-DROP TABLE IF EXISTS `old_table`;
+DROP TABLE IF EXISTS `test`.`test.old_table`;

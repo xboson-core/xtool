@@ -1,3 +1,6 @@
+CREATE DATABASE  `test` /*!40100 DEFAULT CHARACTER SET utf8 */;
+USE `test`;
+
 CREATE TABLE `users` (
   `id` INT NOT NULL,
   `name` VARCHAR(50) NOT NULL,

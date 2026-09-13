@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"vitess.io/vitess/go/vt/sqlparser"
 )
@@ -77,6 +79,7 @@ type TableDataBuilder struct {
 	nextInsert 	func(*Table, string)error
 	nextCreate  func(*Table, string)error
 	Schema      Schema
+	curr_lm     int
 }
 
 
@@ -98,7 +101,8 @@ func (s *TableDataBuilder) GetTable(fullname string) (*Table, error) {
 }
 
 
-func (s *TableDataBuilder) OnSql(st sqlparser.Statement, sql string) error {
+func (s *TableDataBuilder) OnSql(st sqlparser.Statement, sql string, lm int) error {
+	s.curr_lm = lm
 	switch node := st.(type) {
 
 	case *sqlparser.Insert:
@@ -106,7 +110,7 @@ func (s *TableDataBuilder) OnSql(st sqlparser.Statement, sql string) error {
 		if err != nil {
 			return err
 		}
-		parseInsert(node, table)
+		parseInsert(node, table, lm)
 		if s.nextInsert != nil {
 			if err := s.nextInsert(table, sql); err != nil {
 				return err
@@ -130,7 +134,8 @@ func (s *TableDataBuilder) OnSql(st sqlparser.Statement, sql string) error {
 
 	case *sqlparser.Use:
 		s.Schema = Schema{ node.DBName.String() }
-		s.putrs(sql)
+		s.putrs(fmt.Sprintf("-- %d;", s.curr_lm))
+		s.putrs(strings.TrimSpace(sql))
 
 	case *sqlparser.DropTable:
 	case *sqlparser.DropDatabase:
@@ -138,7 +143,8 @@ func (s *TableDataBuilder) OnSql(st sqlparser.Statement, sql string) error {
 		// donothing
 
 	default:
-		s.putrs(sql)
+		s.putrs(fmt.Sprintf("-- %d;", s.curr_lm))
+		s.putrs(strings.TrimSpace(sql))
 	}
 
 	return nil
@@ -207,11 +213,12 @@ type DiffDataBuilder struct {
 }
 
 
-func (d *DiffDataBuilder) writeInsert(t *Table, ins string) error {
+func (d *DiffDataBuilder) writeInsert(t *Table, insSql string) error {
 	baset, _ := d.base.GetTable(t.Name)
 	// 如果是新建表 则全部输出
 	if baset == nil {
-		d.putrs(ins)
+		d.putrs(fmt.Sprintf("-- %d;", d.curr_lm))
+		d.putrs(strings.TrimSpace(insSql))
 		t.Rows = nil
 		return nil
 	}
@@ -338,14 +345,16 @@ func (d *DiffDataBuilder) makeUpdate(t *Table, old, new []string) string {
 		return ""
 	}
 	return fmt.Sprintf(
-		"UPDATE %s \n\tSET %s \n\tWHERE %s;", 
-		t.SafeName(), set.String(), where)
+		"-- %d;\nUPDATE %s \n\tSET %s \n\tWHERE %s;", 
+		d.curr_lm, t.SafeName(), set.String(), where)
 }
 
 
 func (d *DiffDataBuilder) makeDelete(t *Table, row []string) string {
 	where := makeWhereWithPK(t, row)
-	return fmt.Sprintf("DELETE FROM %s where %s;", t.SafeName(), where)
+	return fmt.Sprintf(
+		"-- %d;\nDELETE FROM %s where %s;", 
+		d.curr_lm, t.SafeName(), where)
 }
 
 
@@ -366,8 +375,8 @@ func (d *DiffDataBuilder) makeInsert(t *Table, row []string) string {
 		c += 1
 	}
 	return fmt.Sprintf(
-		"INSERT INTO %s (%s) VALUES \n\t(%s);", 
-		t.Name, _cols.String(), _rows.String())
+		"-- %d;\nINSERT INTO %s (%s) VALUES \n\t(%s);", 
+		d.curr_lm, t.Name, _cols.String(), _rows.String())
 }
 
 
@@ -384,13 +393,14 @@ func (d *DiffDataBuilder) OnFinish() {
 
 func (d *DiffDataBuilder) writeCreate(t *Table, sql string) error {
 	if _, has := d.base.tables[t.Name]; !has {
-		d.putrs(sql)
+		d.putrs(fmt.Sprintf("-- %d;", d.curr_lm))
+		d.putrs(strings.TrimSpace(sql))
 	}
 	return nil
 }
 
 
-func NewDiffDataBuilder(b *TableDataBuilder) *DiffDataBuilder {
+func NewDiffDataBuilder(b *TableDataBuilder, bf, uf string) *DiffDataBuilder {
 	ret := &DiffDataBuilder{
 		TableDataBuilder: TableDataBuilder{
 			Render: true,
@@ -400,6 +410,18 @@ func NewDiffDataBuilder(b *TableDataBuilder) *DiffDataBuilder {
 	}
 	ret.nextInsert = ret.writeInsert
 	ret.nextCreate = ret.writeCreate
+
+	ret.putrs(fmt.Sprintf("-- %s", time.Now()))
+	if ap, err := filepath.Abs(bf); err != nil {
+		ret.putrs(fmt.Sprintf("-- Base: %s", bf))
+	} else {
+		ret.putrs(fmt.Sprintf("-- Base: %s", ap))
+	}
+	if ap, err := filepath.Abs(uf); err != nil {
+		ret.putrs(fmt.Sprintf("-- Diff: %s", uf))
+	} else {
+		ret.putrs(fmt.Sprintf("-- Diff: %s", ap))
+	}
 	return ret
 }
 
@@ -409,7 +431,7 @@ func SqlDiff(o *Options) error {
 	if err := EachSqlFrom(o.Base, base); err != nil {
 		return err
 	}
-	update := NewDiffDataBuilder(base)
+	update := NewDiffDataBuilder(base, o.Base, o.Input)
 	if err := EachSqlFrom(o.Input, update); err != nil {
 		return err
 	}
