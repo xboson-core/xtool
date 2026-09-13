@@ -25,3 +25,9 @@ test3: build
 
 test4: build
 	./xtool --sqld -b test/a1.sql -i test/a2.sql -o test/a3.sql
+
+test5: build
+	./xtool --sqld \
+		-b 'D:/javaee-project/xboson-docker/$$upload/db/dump.db' \
+		-i D:/javaee-project/xboson-open-source/mysql/data/10.xboson-mysql-init.sql \
+		-o test/xboson-diff.ign.sql
